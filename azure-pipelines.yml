@@ -14,6 +14,12 @@ stages:
   jobs:
   - job: Build
     steps:
+    - script: |
+        echo "PATH: $PATH"
+        echo "MAVEN_HOME: $MAVEN_HOME"
+        mvn -v
+      displayName: 'Verify Maven Installation'
+
     - script: mvn clean install -DskipTests
       displayName: 'Maven Clean Install'
 
