@@ -24,6 +24,7 @@ stages:
   - job: Build
     steps:
     - script: |
+        echo $PATH
         mvn -v  # Verify Maven version
       displayName: 'Verify Maven Installation'
 
