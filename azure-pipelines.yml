@@ -8,9 +8,6 @@ variables:
   registry: 'maizmazin/vproappazure'  # Docker registry name
   registryCredential: 'dockerhub'     # Docker service connection name
   imageTag: 'V$(Build.BuildId)'       # Use build ID as image tag
-  DOCKER_USER: $(DOCKER_USER)         # Docker username from pipeline environment variables
-  DOCKER_PASSWORD: $(DOCKER_PASSWORD) # Docker password from pipeline environment variables
-
 stages:
 - stage: ExportVariables
   jobs:
