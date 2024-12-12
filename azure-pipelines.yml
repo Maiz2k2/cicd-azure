@@ -1,0 +1,16 @@
+trigger:
+- main  # Trigger the pipeline on commits to the main branch
+
+pool:
+  vmImage: 'ubuntu-latest'  # Use the latest Ubuntu image for the build agent
+
+steps:
+- task: UsePythonVersion@0  # Optional step if you're using Python (just an example, could be omitted)
+  inputs:
+    versionSpec: '3.x'
+    addToPath: true
+
+- script: echo "Hello, World!"  # This is the step where we echo "Hello, World!"
+  displayName: 'Echo Hello World'
+
+# Optionally, you can add more steps here depending on your needs.
