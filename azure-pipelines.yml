@@ -18,7 +18,7 @@ stages:
           - task: Maven@4
             inputs:
               azureSubscription: 'aks-service-conn'
-              mavenPomFile: '/pom.xml'
+              mavenPomFile: 'pom.xml'
               publishJUnitResults: false
               javaHomeOption: 'JDKVersion'
               jdkVersionOption: '1.17'
