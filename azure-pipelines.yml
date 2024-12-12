@@ -6,9 +6,52 @@ pool:
 
 variables:
   registry: 'maizmazin/vproappazure'  # Docker registry name
+  registryCredential: 'dockerhub'    # Docker service connection name
   imageTag: 'V$(Build.BuildId)'      # Use build ID as image tag
+  DOCKER_USERNAME: $(dockerUsername)  # Ensure you have this variable set in your pipeline
+  DOCKER_PASSWORD: $(dockerPassword)  # Ensure you have this variable set in your pipeline
 
 stages:
+- stage: Build
+  jobs:
+  - job: Build
+    steps:
+    - script: |
+        echo "##vso[task.setvariable variable=MAVEN_HOME]/opt/maven"
+        echo "##vso[task.setvariable variable=PATH]$MAVEN_HOME/bin:$PATH"
+        mvn -v  # Verify Maven installation
+      displayName: 'Verify Maven Installation'
+
+    - script: mvn clean install -DskipTests
+      displayName: 'Maven Clean Install'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Archive War Artifacts'
+      inputs:
+        pathToPublish: '**/target/*.war'
+        artifactName: 'war-files'
+
+- stage: UnitTests
+  jobs:
+  - job: UnitTests
+    steps:
+    - script: mvn test
+      displayName: 'Run Unit Tests'
+
+- stage: IntegrationTests
+  jobs:
+  - job: IntegrationTests
+    steps:
+    - script: mvn verify -DskipUnitTests
+      displayName: 'Run Integration Tests'
+
+- stage: CodeAnalysisCheckstyle
+  jobs:
+  - job: CodeAnalysisCheckstyle
+    steps:
+    - script: mvn checkstyle:checkstyle
+      displayName: 'Run Checkstyle Analysis'
+
 - stage: BuildAndPushDockerImage
   jobs:
   - job: BuildAndPushDockerImage
