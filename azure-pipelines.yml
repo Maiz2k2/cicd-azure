@@ -5,8 +5,9 @@ pool:
   name: 'aks-pool'  # Your self-hosted AKS pool
 
 variables:
+  DOCKER_USERNAME: $(DOCKER_USERNAME)  # Set your Docker Hub username
+  DOCKER_PASSWORD: $(DOCKER_PASSWORD)
   registry: 'maizmazin/vproappazure'  # Docker registry name
-  registryCredential: 'dockerhub'    # Docker service connection name
   imageTag: 'V$(Build.BuildId)'      # Use build ID as image tag
 
 stages:
@@ -14,13 +15,11 @@ stages:
   jobs:
   - job: BuildAndPushDockerImage
     steps:
-    - script: docker pull maizmazin/vproappdock:latest
-      displayName: 'Pull Existing Docker Image'
-
-    - script: docker tag maizmazin/vproappdock:latest $(registry):$(imageTag)
-      displayName: 'Tag Docker Image'
+    - script: docker build -t $(registry):$(imageTag) .
+      displayName: 'Build Docker Image'
 
     - script: |
+        echo $(DOCKER_PASSWORD) | docker login --username $(DOCKER_USERNAME) --password-stdin
         docker push $(registry):$(imageTag)
         docker push $(registry):latest
       displayName: 'Push Docker Image'
