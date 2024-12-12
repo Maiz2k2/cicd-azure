@@ -14,16 +14,20 @@ stages:
   jobs:
   - job: Build
     steps:
-    - script: |
-        # Install Maven
-        wget https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz
-        sudo tar -xvzf apache-maven-3.9.9-bin.tar.gz -C /opt
-        export MAVEN_HOME=/opt/apache-maven-3.9.9
-        export PATH=$MAVEN_HOME/bin:$PATH  # Add Maven's bin directory to PATH
-        mvn -v  # Verify Maven version
-      displayName: 'Verify Maven Installation'
+    - task: Maven@3
+      displayName: 'Install Maven'
+      inputs:
+        mavenVersionOption: 'Default'
+        mavenAuthenticateFeed: false
 
-    - script: mvn clean install -DskipTests
+    - script: |
+        # Verify Maven version
+        mvn -v
+      displayName: 'Verify Maven Version'
+
+    - script: |
+        # Run Maven clean install
+        mvn clean install -DskipTests
       displayName: 'Maven Clean Install'
 
     - task: PublishBuildArtifacts@1
@@ -36,21 +40,27 @@ stages:
   jobs:
   - job: UnitTests
     steps:
-    - script: mvn test
+    - script: |
+        # Run Maven unit tests
+        mvn test
       displayName: 'Run Unit Tests'
 
 - stage: IntegrationTests
   jobs:
   - job: IntegrationTests
     steps:
-    - script: mvn verify -DskipUnitTests
+    - script: |
+        # Run Maven integration tests
+        mvn verify -DskipUnitTests
       displayName: 'Run Integration Tests'
 
 - stage: CodeAnalysisCheckstyle
   jobs:
   - job: CodeAnalysisCheckstyle
     steps:
-    - script: mvn checkstyle:checkstyle
+    - script: |
+        # Run Maven Checkstyle analysis
+        mvn checkstyle:checkstyle
       displayName: 'Run Checkstyle Analysis'
 
 - stage: BuildAndPushDockerImage
@@ -73,6 +83,7 @@ stages:
       displayName: 'Build Docker Image'
 
     - script: |
+        # Push the Docker image
         docker push $(registry):$(imageTag)
         docker push $(registry):latest
       displayName: 'Push Docker Image'
@@ -95,10 +106,10 @@ stages:
     - script: |
         # Install Helm
         curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-        sudo apt-get install apt-transport-https --yes
+        sudo apt-get install -y apt-transport-https
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
         sudo apt-get update
-        sudo apt-get install helm
+        sudo apt-get install -y helm
         helm version  # Verify Helm installation
 
         # Deploy using Helm
