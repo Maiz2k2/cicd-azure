@@ -24,6 +24,9 @@ stages:
   - job: Build
     steps:
     - script: |
+        export MAVEN_HOME=/opt/maven
+        export PATH=$MAVEN_HOME/bin:$PATH
+        export M2_HOME=/opt/maven 
         echo $PATH
         mvn -v  # Verify Maven version
       displayName: 'Verify Maven Installation'
