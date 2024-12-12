@@ -8,8 +8,6 @@ variables:
   registry: 'maizmazin/vproappazure'  # Docker registry name
   registryCredential: 'dockerhub'    # Docker service connection name
   imageTag: 'V$(Build.BuildId)'      # Use build ID as image tag
-  mavenVersion: '3.8.1'              # Maven version to install
-  helmVersion: '3.8.2'               # Helm version to install
 
 stages:
 - stage: Build
@@ -18,13 +16,12 @@ stages:
     steps:
     - script: |
         # Install Maven
-        echo "Installing Maven..."
-        wget https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz
-        tar -xvzf apache-maven-${MAVEN_VERSION}-bin.tar.gz
-        export MAVEN_HOME=$(pwd)/apache-maven-${MAVEN_VERSION}
-        export PATH=$MAVEN_HOME/bin:$PATH
+        wget https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz
+        sudo tar -xvzf apache-maven-3.9.9-bin.tar.gz -C /opt
+        export MAVEN_HOME=/opt/apache-maven-3.9.9
+        export PATH=$MAVEN_HOME/bin:$PATH  # Add Maven's bin directory to PATH
         mvn -v  # Verify Maven version
-      displayName: 'Install and Verify Maven'
+      displayName: 'Verify Maven Installation'
 
     - script: mvn clean install -DskipTests
       displayName: 'Maven Clean Install'
@@ -62,13 +59,16 @@ stages:
     steps:
     - script: |
         # Install Docker
-        echo "Installing Docker..."
-        curl -fsSL https://get.docker.com | sh
-        sudo usermod -aG docker $(whoami)  # Add user to docker group (to run docker without sudo)
-        sudo systemctl enable --now docker
+        sudo apt-get update
+        sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+        sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+        sudo apt-get update
+        sudo apt-get install -y docker-ce
+        sudo usermod -aG docker $(whoami)  # Add current user to the docker group
         docker --version  # Verify Docker installation
 
-        # Build Docker Image
+        # Build the Docker image
         docker build -t $(registry):$(imageTag) .
       displayName: 'Build Docker Image'
 
@@ -81,26 +81,26 @@ stages:
   jobs:
   - job: KubernetesDeploy
     pool:
-      name: 'aks-pool'
+      name: 'aks-pool' 
     steps:
+    - task: AzureCLI@2
+      displayName: 'Configure kubectl'
+      inputs:
+        azureSubscription: 'aks-service-conn'  # Azure service connection name
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az aks get-credentials --resource-group aks-demo-rg --name aks-demo-cluster 
+    
     - script: |
-        # Install Azure CLI
-        echo "Installing Azure CLI..."
-        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-        az --version  # Verify Azure CLI installation
-
         # Install Helm
-        echo "Installing Helm..."
-        wget https://get.helm.sh/helm-v$(helmVersion)-linux-amd64.tar.gz
-        tar -zxvf helm-v$(helmVersion)-linux-amd64.tar.gz
-        sudo mv linux-amd64/helm /usr/local/bin/helm
+        curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+        sudo apt-get install apt-transport-https --yes
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+        sudo apt-get update
+        sudo apt-get install helm
         helm version  # Verify Helm installation
 
-        # Configure kubectl
-        echo "Configuring kubectl..."
-        az aks get-credentials --resource-group aks-demo-rg --name aks-demo-cluster
-      displayName: 'Install Azure CLI, Helm, and Configure kubectl'
-
-    - script: |
+        # Deploy using Helm
         helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appimage=$(registry):$(imageTag) --namespace prod
       displayName: 'Deploy to Kubernetes with Helm'
