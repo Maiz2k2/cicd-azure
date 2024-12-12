@@ -1,5 +1,5 @@
 trigger:
-- main  # Trigger on your main branch (or whichever branch you prefer)
+  - main  # Trigger on your main branch (or whichever branch you prefer)
 
 pool:
   name: 'aks-pool'  # Your self-hosted AKS pool
@@ -8,78 +8,90 @@ variables:
   registry: 'maizmazin/vproappazure'  # Docker registry name
   registryCredential: 'dockerhub'    # Docker service connection name
   imageTag: 'V$(Build.BuildId)'      # Use build ID as image tag
-  DOCKER_USERNAME: $(dockerUsername)  # Ensure you have this variable set in your pipeline
-  DOCKER_PASSWORD: $(dockerPassword)  # Ensure you have this variable set in your pipeline
 
 stages:
-- stage: Build
-  jobs:
-  - job: Build
-    steps:
-    - script: |
-        echo "##vso[task.setvariable variable=MAVEN_HOME]/opt/maven"
-        echo "##vso[task.setvariable variable=PATH]$MAVEN_HOME/bin:$PATH"
-        mvn -v  # Verify Maven installation
-      displayName: 'Verify Maven Installation'
+  - stage: Build
+    jobs:
+      - job: Build
+        steps:
+          # Use the built-in Maven tool to set up Maven
+          - task: Maven@4
+            inputs:
+              azureSubscription: 'aks-service-conn'
+              mavenPomFile: '/pom.xml'
+              publishJUnitResults: false
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.17'
+              mavenVersionOption: 'Default'
+              mavenAuthenticateFeed: false
+              effectivePomSkip: false
+              sonarQubeRunAnalysis: false
+            displayName: 'Set up Maven'
 
-    - script: mvn clean install -DskipTests
-      displayName: 'Maven Clean Install'
+          # Verify Maven installation (this will use the installed Maven tool)
+          - script: mvn -v  # Verify Maven installation
+            displayName: 'Verify Maven Installation'
 
-    - task: PublishBuildArtifacts@1
-      displayName: 'Archive War Artifacts'
-      inputs:
-        pathToPublish: '**/target/*.war'
-        artifactName: 'war-files'
+          # Run Maven Clean Install
+          - script: mvn clean install -DskipTests
+            displayName: 'Maven Clean Install'
 
-- stage: UnitTests
-  jobs:
-  - job: UnitTests
-    steps:
-    - script: mvn test
-      displayName: 'Run Unit Tests'
+          # Publish Artifacts
+          - task: PublishBuildArtifacts@1
+            displayName: 'Archive War Artifacts'
+            inputs:
+              pathToPublish: '**/target/*.war'
+              artifactName: 'war-files'
 
-- stage: IntegrationTests
-  jobs:
-  - job: IntegrationTests
-    steps:
-    - script: mvn verify -DskipUnitTests
-      displayName: 'Run Integration Tests'
+  - stage: UnitTests
+    jobs:
+      - job: UnitTests
+        steps:
+          - script: mvn test
+            displayName: 'Run Unit Tests'
 
-- stage: CodeAnalysisCheckstyle
-  jobs:
-  - job: CodeAnalysisCheckstyle
-    steps:
-    - script: mvn checkstyle:checkstyle
-      displayName: 'Run Checkstyle Analysis'
+  - stage: IntegrationTests
+    jobs:
+      - job: IntegrationTests
+        steps:
+          - script: mvn verify -DskipUnitTests
+            displayName: 'Run Integration Tests'
 
-- stage: BuildAndPushDockerImage
-  jobs:
-  - job: BuildAndPushDockerImage
-    steps:
-    - script: docker build -t $(registry):$(imageTag) .
-      displayName: 'Build Docker Image'
+  - stage: CodeAnalysisCheckstyle
+    jobs:
+      - job: CodeAnalysisCheckstyle
+        steps:
+          - script: mvn checkstyle:checkstyle
+            displayName: 'Run Checkstyle Analysis'
 
-    - script: |
-        echo $(DOCKER_PASSWORD) | docker login --username $(DOCKER_USERNAME) --password-stdin
-        docker push $(registry):$(imageTag)
-        docker push $(registry):latest
-      displayName: 'Push Docker Image'
+  - stage: BuildAndPushDockerImage
+    jobs:
+      - job: BuildAndPushDockerImage
+        steps:
+          - script: docker build -t $(registry):$(imageTag) .
+            displayName: 'Build Docker Image'
 
-- stage: KubernetesDeploy
-  jobs:
-  - job: KubernetesDeploy
-    pool:
-      name: 'aks-pool' 
-    steps:
-    - task: AzureCLI@2
-      displayName: 'Configure kubectl'
-      inputs:
-        azureSubscription: 'aks-service-conn'  # Azure service connection name
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          az aks get-credentials --resource-group aks-demo-rg --name aks-demo-cluster 
-    
-    - script: |
-        helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appimage=$(registry):$(imageTag) --namespace prod
-      displayName: 'Deploy to Kubernetes with Helm'
+          - script: |
+              echo $(DOCKER_PASSWORD) | docker login --username $(DOCKER_USERNAME) --password-stdin
+              docker push $(registry):$(imageTag)
+              docker push $(registry):latest
+            displayName: 'Push Docker Image'
+
+  - stage: KubernetesDeploy
+    jobs:
+      - job: KubernetesDeploy
+        pool:
+          name: 'aks-pool'
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Configure kubectl'
+            inputs:
+              azureSubscription: 'aks-service-conn'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az aks get-credentials --resource-group aks-demo-rg --name aks-demo-cluster 
+
+          - script: |
+              helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appimage=$(registry):$(imageTag) --namespace prod
+            displayName: 'Deploy to Kubernetes with Helm'
