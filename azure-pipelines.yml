@@ -5,8 +5,6 @@ pool:
   name: 'aks-pool'  # Your self-hosted AKS pool
 
 variables:
-  DOCKER_USERNAME: $(DOCKER_USERNAME)  # Set your Docker Hub username
-  DOCKER_PASSWORD: $(DOCKER_PASSWORD)
   registry: 'maizmazin/vproappazure'  # Docker registry name
   imageTag: 'V$(Build.BuildId)'      # Use build ID as image tag
 
