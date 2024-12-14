@@ -35,8 +35,12 @@ stages:
             displayName: 'Build Project with Maven'
 
           - script: |
-              ls -R $(Build.SourcesDirectory)/target  # Verify the WAR file exists
-            displayName: 'Verify WAR File Generation'
+              # Verify WAR file exists in the target directory
+              ls -R $(Build.SourcesDirectory)/target
+              # Copy the WAR file to target2 directory for Docker usage
+              mkdir -p $(Build.SourcesDirectory)/target2
+              cp $(Build.SourcesDirectory)/target/vprofile-v2.war $(Build.SourcesDirectory)/target2/
+            displayName: 'Verify and Copy WAR File to target2'
 
   - stage: BuildAndPushDockerImage
     jobs:
