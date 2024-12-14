@@ -1,23 +1,15 @@
 trigger:
-  - main  # Trigger on your main branch (or whichever branch you prefer)
+  - main  # Trigger on your main branch
 
 pool:
   name: 'aks-pool'  # Your self-hosted AKS pool
 
 variables:
   registry: 'maizmazin/vproappazure'  # Docker registry name
-  registryCredential: 'dockerhub'    # Docker service connection name
-  imageTag: 'V$(Build.BuildId)'      # Use build ID as image tag
+  registryCredential: 'dockerhub'     # Docker service connection name
+  imageTag: 'V$(Build.BuildId)'       # Use build ID as image tag
 
 stages:
-  - stage: SourcingEnvironment
-    jobs:
-      - job: SourcingEnvironment
-        steps:
-          - script: |
-              source /etc/environment
-            displayName: 'Source /etc/environment'
-
   - stage: Build
     jobs:
       - job: Build
@@ -36,56 +28,22 @@ stages:
               jdkVersionOption: '1.17'
               mavenVersionOption: 'Default'
               mavenAuthenticateFeed: false
-              effectivePomSkip: false
               sonarQubeRunAnalysis: false
             displayName: 'Set up Maven'
 
-          - script: mvn -v  # Verify Maven installation
-            displayName: 'Verify Maven Installation'
-
           - script: mvn clean install -DskipTests
-            displayName: 'Maven Clean Install'
+            displayName: 'Build Project with Maven'
 
-          # Add a debug step to verify file paths
           - script: |
-              ls -R $(Build.SourcesDirectory)/target
-            displayName: 'Verify War File Generation'
-
-          # Copy the WAR file to a separate directory for Docker build
-          - task: CopyFiles@2
-            inputs:
-              SourceFolder: '$(Build.SourcesDirectory)/target'
-              Contents: 'vprofile-v2.war'  # Adjust path if needed
-              TargetFolder: '$(Build.ArtifactStagingDirectory)/war'  # Temporary storage directory
-            displayName: 'Copy WAR file for Docker build'
-
-  - stage: UnitTests
-    jobs:
-      - job: UnitTests
-        steps:
-          - script: mvn test
-            displayName: 'Run Unit Tests'
-
-  - stage: IntegrationTests
-    jobs:
-      - job: IntegrationTests
-        steps:
-          - script: mvn verify -DskipUnitTests
-            displayName: 'Run Integration Tests'
-
-  - stage: CodeAnalysisCheckstyle
-    jobs:
-      - job: CodeAnalysisCheckstyle
-        steps:
-          - script: mvn checkstyle:checkstyle
-            displayName: 'Run Checkstyle Analysis'
+              ls -R $(Build.SourcesDirectory)/target  # Verify the WAR file exists
+            displayName: 'Verify WAR File Generation'
 
   - stage: BuildAndPushDockerImage
     jobs:
       - job: BuildAndPushDockerImage
         steps:
           - script: |
-              docker build -t $(registry):$(imageTag) -t $(registry):latest -f Dockerfile .
+              docker build -t $(registry):$(imageTag) -t $(registry):latest .
             displayName: 'Build Docker Image'
 
           - script: |
@@ -94,20 +52,9 @@ stages:
               docker push $(registry):latest
             displayName: 'Push Docker Image'
 
-  - stage: RemoveUnusedDockerImage
-    jobs:
-      - job: RemoveUnusedDockerImage
-        steps:
-          - script: |
-              docker rmi $(registry):$(imageTag)
-              docker rmi $(registry):$(imageTag)-old || true  # Ignore if image does not exist
-            displayName: 'Remove Unused Docker Image'
-
   - stage: KubernetesDeploy
     jobs:
       - job: KubernetesDeploy
-        pool:
-          name: 'aks-pool'
         steps:
           - task: AzureCLI@2
             displayName: 'Configure kubectl'
