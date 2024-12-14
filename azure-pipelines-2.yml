@@ -51,11 +51,13 @@ stages:
               ls -R $(Build.SourcesDirectory)/target
             displayName: 'Verify War File Generation'
 
-          - task: PublishBuildArtifacts@1
-            displayName: 'Archive War Artifacts'
+          # Copy the WAR file to a separate directory for Docker build
+          - task: CopyFiles@2
             inputs:
-              pathToPublish: '$(Build.SourcesDirectory)/target/vprofile-v2.war'  # Adjusted path
-              artifactName: 'war-files'
+              SourceFolder: '$(Build.SourcesDirectory)/target'
+              Contents: 'vprofile-v2.war'  # Adjust path if needed
+              TargetFolder: '$(Build.ArtifactStagingDirectory)/war'  # Temporary storage directory
+            displayName: 'Copy WAR file for Docker build'
 
   - stage: UnitTests
     jobs:
@@ -83,7 +85,7 @@ stages:
       - job: BuildAndPushDockerImage
         steps:
           - script: |
-              docker build -t $(registry):$(imageTag) -t $(registry):latest .
+              docker build -t $(registry):$(imageTag) -t $(registry):latest -f Dockerfile .
             displayName: 'Build Docker Image'
 
           - script: |
