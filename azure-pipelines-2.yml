@@ -51,10 +51,11 @@ stages:
               ls -R $(Build.SourcesDirectory)/target
             displayName: 'Verify War File Generation'
 
+          # Archive war files
           - task: PublishBuildArtifacts@1
             displayName: 'Archive War Artifacts'
             inputs:
-              pathToPublish: '$(Build.SourcesDirectory)/target/*.war'  # Adjusted path
+              pathToPublish: '$(Build.SourcesDirectory)/target/vprofile-v2/*.war'  # Adjusted path
               artifactName: 'war-files'
 
   - stage: UnitTests
