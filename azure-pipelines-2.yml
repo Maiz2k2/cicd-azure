@@ -9,7 +9,6 @@ variables:
   registryCredential: 'dockerhub'     # Docker service connection name
   imageTag: 'V$(Build.BuildId)'       # Use build ID as image tag
   gitHubRepo: 'Maiz2k2/cicd-azure'   # GitHub repository name (replace with your actual repo)
-  gitHubToken: $(GitHubToken)        # GitHub token for authentication (ensure you set this in Azure DevOps secrets)
 
 stages:
   - stage: Build
