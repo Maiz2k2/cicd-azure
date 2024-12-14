@@ -82,7 +82,8 @@ stages:
     jobs:
       - job: BuildAndPushDockerImage
         steps:
-          - script: docker build -t $(registry):$(imageTag) .
+          - script: |
+              docker build -t $(registry):$(imageTag) -t $(registry):latest .
             displayName: 'Build Docker Image'
 
           - script: |
