@@ -1,0 +1,40 @@
+trigger:
+  - main  # Trigger on your main branch (or whichever branch you prefer)
+
+pool:
+  name: 'aks-pool'  # Your self-hosted AKS pool
+
+variables:
+  registry: 'maizmazin/vproappazure'  # Docker registry name
+  registryCredential: 'dockerhub'    # Docker service connection name
+  imageTag: 'V$(Build.BuildId)'      # Use build ID as image tag
+
+stages:
+  - stage: ToolVersions
+    jobs:
+      - job: ToolVersions
+        steps:
+          # Source /etc/environment to load environment variables
+          - script: |
+              source /etc/environment
+            displayName: 'Source /etc/environment'
+
+          # Verify Maven installation (this will use the installed Maven tool)
+          - script: mvn -v  # Show Maven version
+            displayName: 'Show Maven Version'
+
+          # Show Docker version
+          - script: docker --version
+            displayName: 'Show Docker Version'
+
+          # Show kubectl version
+          - script: kubectl version --client
+            displayName: 'Show kubectl Version'
+
+          # Show Helm version
+          - script: helm version
+            displayName: 'Show Helm Version'
+
+          # Show Azure CLI version
+          - script: az --version
+            displayName: 'Show Azure CLI Version'
