@@ -10,31 +10,106 @@ variables:
   imageTag: 'V$(Build.BuildId)'      # Use build ID as image tag
 
 stages:
-  - stage: ToolVersions
+  - stage: SourcingEnvironment
     jobs:
-      - job: ToolVersions
+      - job: SourcingEnvironment
         steps:
           # Source /etc/environment to load environment variables
           - script: |
               source /etc/environment
             displayName: 'Source /etc/environment'
 
+  - stage: Build
+    jobs:
+      - job: Build
+        steps:
+          # Use the built-in Maven tool to set up Maven
+          - task: Maven@4
+            inputs:
+              azureSubscription: 'aks-service-conn'
+              mavenPomFile: 'pom.xml'
+              publishJUnitResults: false
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.17'
+              mavenVersionOption: 'Default'
+              mavenAuthenticateFeed: false
+              effectivePomSkip: false
+              sonarQubeRunAnalysis: false
+            displayName: 'Set up Maven'
+
           # Verify Maven installation (this will use the installed Maven tool)
-          - script: mvn -v  # Show Maven version
-            displayName: 'Show Maven Version'
+          - script: mvn -v  # Verify Maven installation
+            displayName: 'Verify Maven Installation'
 
-          # Show Docker version
-          - script: docker --version
-            displayName: 'Show Docker Version'
+          # Run Maven Clean Install
+          - script: mvn clean install -DskipTests
+            displayName: 'Maven Clean Install'
 
-          # Show kubectl version
-          - script: kubectl version --client
-            displayName: 'Show kubectl Version'
+          # Publish Artifacts
+          - task: PublishBuildArtifacts@1
+            displayName: 'Archive War Artifacts'
+            inputs:
+              pathToPublish: '**/target/*.war'
+              artifactName: 'war-files'
 
-          # Show Helm version
-          - script: helm version
-            displayName: 'Show Helm Version'
+  - stage: UnitTests
+    jobs:
+      - job: UnitTests
+        steps:
+          - script: mvn test
+            displayName: 'Run Unit Tests'
 
-          # Show Azure CLI version
-          - script: az --version
-            displayName: 'Show Azure CLI Version'
+  - stage: IntegrationTests
+    jobs:
+      - job: IntegrationTests
+        steps:
+          - script: mvn verify -DskipUnitTests
+            displayName: 'Run Integration Tests'
+
+  - stage: CodeAnalysisCheckstyle
+    jobs:
+      - job: CodeAnalysisCheckstyle
+        steps:
+          - script: mvn checkstyle:checkstyle
+            displayName: 'Run Checkstyle Analysis'
+
+  - stage: BuildAndPushDockerImage
+    jobs:
+      - job: BuildAndPushDockerImage
+        steps:
+          - script: docker build -t $(registry):$(imageTag) .
+            displayName: 'Build Docker Image'
+
+          - script: |
+              echo $(DOCKER_PASSWORD) | docker login --username $(DOCKER_USERNAME) --password-stdin
+              docker push $(registry):$(imageTag)
+              docker push $(registry):latest
+            displayName: 'Push Docker Image'
+
+  - stage: RemoveUnusedDockerImage
+    jobs:
+      - job: RemoveUnusedDockerImage
+        steps:
+          - script: |
+              docker rmi $(registry):$(imageTag)
+              docker rmi $(registry):$(imageTag)-old || true  # Ignore if image does not exist
+            displayName: 'Remove Unused Docker Image'
+
+  - stage: KubernetesDeploy
+    jobs:
+      - job: KubernetesDeploy
+        pool:
+          name: 'aks-pool'
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Configure kubectl'
+            inputs:
+              azureSubscription: 'aks-service-conn'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az aks get-credentials --resource-group aks-demo-rg --name aks-demo-cluster
+
+          - script: |
+              helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appimage=$(registry):$(imageTag) --namespace prod
+            displayName: 'Deploy to Kubernetes with Helm'
