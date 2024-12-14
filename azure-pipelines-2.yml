@@ -92,7 +92,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Configure kubectl'
             inputs:
-              azureSubscription: 'aks-service-conn'
+              azureSubscription: 'new-aks-conn1'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
