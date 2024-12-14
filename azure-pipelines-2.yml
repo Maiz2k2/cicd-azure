@@ -89,14 +89,13 @@ stages:
         pool:
           name: 'aks-pool'
         steps:
-          - task: AzureCLI@2
+          # Use the Kubernetes service connection to configure kubectl automatically
+          - task: Kubernetes@1
             displayName: 'Configure kubectl'
             inputs:
-              azureSubscription: 'new-aks-conn1'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                az aks get-credentials --resource-group aks-demo-rg --name aks-demo-cluster
+              azureSubscription: 'cluster-conn'  # Name of the Kubernetes Service Connection (service connection in Azure DevOps)
+              kubernetesCluster: 'aks-demo-cluster'  # Your AKS cluster name
+              resourceGroup: 'aks-demo-rg'  # Resource Group where AKS cluster is located
 
           - script: |
               helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appimage=$(registry):$(imageTag) --namespace prod
