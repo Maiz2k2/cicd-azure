@@ -8,6 +8,8 @@ variables:
   registry: 'maizmazin/vproappazure'  # Docker registry name
   registryCredential: 'dockerhub'     # Docker service connection name
   imageTag: 'V$(Build.BuildId)'       # Use build ID as image tag
+  gitHubRepo: 'Maiz2k2/cicd-azure'   # GitHub repository name (replace with your actual repo)
+  gitHubToken: $(GitHubToken)        # GitHub token for authentication (ensure you set this in Azure DevOps secrets)
 
 stages:
   - stage: Build
@@ -34,18 +36,29 @@ stages:
           - script: mvn clean install -DskipTests
             displayName: 'Build Project with Maven'
 
-          - task: CopyFiles@2
-            inputs:
-              SourceFolder: '$(Build.SourcesDirectory)/target'
-              Contents: 'vprofile-v2.war'
-              TargetFolder: '$(Build.SourcesDirectory)/target2'
-            displayName: 'Copy WAR File to target2'
+          - script: |
+              echo "Uploading WAR file to GitHub repository"
+              git config --global user.name "Azure DevOps"
+              git config --global user.email "maiz.mazin@gmail.com"
+              git clone https://$(gitHubToken)@github.com/$(gitHubRepo).git
+              cd $(Build.SourcesDirectory)
+              mkdir -p $(Build.SourcesDirectory)/$(gitHubRepo)/dist  # Create 'dist' folder if not exists
+              cp target/vprofile-v2.war $(Build.SourcesDirectory)/$(gitHubRepo)/dist/vprofile-v2.war  # Copy WAR to dist folder
+              cd $(Build.SourcesDirectory)/$(gitHubRepo)
+              git add .
+              git commit -m "Add vprofile-v2.war to dist folder"
+              git push
+            displayName: 'Upload WAR file to GitHub Repo'
 
   - stage: BuildAndPushDockerImage
     jobs:
       - job: BuildAndPushDockerImage
         steps:
           - script: |
+              # Clone the GitHub repo to fetch the WAR file for Docker build
+              git clone https://$(gitHubToken)@github.com/$(gitHubRepo).git /tmp/repo
+              cp /tmp/repo/dist/vprofile-v2.war .
+
               # Build Docker Image using the Dockerfile located at a custom location
               docker build -f /home/azureuser/myagent/_work/1/s/Dockerfile -t $(registry):$(imageTag) -t $(registry):latest /home/azureuser/myagent/_work/1/s
             displayName: 'Build Docker Image'
