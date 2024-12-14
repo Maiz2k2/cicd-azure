@@ -1,14 +1,12 @@
 trigger:
-  - main  # Trigger on your main branch
+  - main  # Trigger on your main branch (or whichever branch you prefer)
 
 pool:
   name: 'aks-pool'  # Your self-hosted AKS pool
 
 variables:
   registry: 'maizmazin/vproappazure'  # Docker registry name
-  registryCredential: 'dockerhub'     # Docker service connection name
-  imageTag: 'V$(Build.BuildId)'       # Use build ID as image tag
-  gitHubRepo: 'Maiz2k2/cicd-azure'   # GitHub repository name (replace with your actual repo)
+  imageTag: 'V$(Build.BuildId)'        # Use build ID as image tag
 
 stages:
   - stage: Build
@@ -29,48 +27,67 @@ stages:
               jdkVersionOption: '1.17'
               mavenVersionOption: 'Default'
               mavenAuthenticateFeed: false
+              effectivePomSkip: false
               sonarQubeRunAnalysis: false
             displayName: 'Set up Maven'
 
-          - script: mvn clean install -DskipTests
-            displayName: 'Build Project with Maven'
+          - script: mvn -v  # Verify Maven installation
+            displayName: 'Verify Maven Installation'
 
+          - script: mvn clean install -DskipTests
+            displayName: 'Maven Clean Install'
+
+          # Add a debug step to verify file paths
           - script: |
-              echo "Uploading WAR file to GitHub repository"
-              git config --global user.name "Azure DevOps"
-              git config --global user.email "maiz.mazin@gmail.com"
-              git clone https://$(gitHubToken)@github.com/$(gitHubRepo).git
-              cd $(Build.SourcesDirectory)
-              mkdir -p $(Build.SourcesDirectory)/$(gitHubRepo)/dist  # Create 'dist' folder if not exists
-              cp target/vprofile-v2.war $(Build.SourcesDirectory)/$(gitHubRepo)/dist/vprofile-v2.war  # Copy WAR to dist folder
-              cd $(Build.SourcesDirectory)/$(gitHubRepo)
-              git add .
-              git commit -m "Add vprofile-v2.war to dist folder"
-              git push
-            displayName: 'Upload WAR file to GitHub Repo'
+              ls -R $(Build.SourcesDirectory)/target
+            displayName: 'Verify War File Generation'
+
+          # Publish WAR file as an artifact
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish WAR Artifact'
+            inputs:
+              pathToPublish: '$(Build.SourcesDirectory)/target/vprofile-v2.war'  # Adjusted path to the generated WAR file
+              artifactName: 'war-files'
 
   - stage: BuildAndPushDockerImage
     jobs:
       - job: BuildAndPushDockerImage
         steps:
-          - script: |
-              # Clone the GitHub repo to fetch the WAR file for Docker build
-              git clone https://$(gitHubToken)@github.com/$(gitHubRepo).git /tmp/repo
-              cp /tmp/repo/dist/vprofile-v2.war .
+          # Download the WAR artifact from the previous build
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download WAR Artifact'
+            inputs:
+              buildType: 'current'  # Get the artifacts from the current build
+              downloadType: 'single'
+              artifactName: 'war-files'  # Name of the artifact to download
+              downloadPath: '$(Build.SourcesDirectory)/target'  # Ensure WAR file is downloaded to the target directory
 
-              # Build Docker Image using the Dockerfile located at a custom location
-              docker build -f /home/azureuser/myagent/_work/1/s/Dockerfile -t $(registry):$(imageTag) -t $(registry):latest /home/azureuser/myagent/_work/1/s
+          # Build Docker image using the downloaded WAR file
+          - script: |
+              docker build -t $(registry):$(imageTag) -t $(registry):latest .
             displayName: 'Build Docker Image'
 
+          # Push Docker image to the registry
           - script: |
               echo $(DOCKER_PASSWORD) | docker login --username $(DOCKER_USERNAME) --password-stdin
               docker push $(registry):$(imageTag)
               docker push $(registry):latest
             displayName: 'Push Docker Image'
 
+  - stage: RemoveUnusedDockerImage
+    jobs:
+      - job: RemoveUnusedDockerImage
+        steps:
+          - script: |
+              docker rmi $(registry):$(imageTag)
+              docker rmi $(registry):$(imageTag)-old || true  # Ignore if image does not exist
+            displayName: 'Remove Unused Docker Image'
+
   - stage: KubernetesDeploy
     jobs:
       - job: KubernetesDeploy
+        pool:
+          name: 'aks-pool'
         steps:
           - task: AzureCLI@2
             displayName: 'Configure kubectl'
