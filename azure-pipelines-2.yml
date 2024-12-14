@@ -34,20 +34,20 @@ stages:
           - script: mvn clean install -DskipTests
             displayName: 'Build Project with Maven'
 
-          - script: |
-              # Verify WAR file exists in the target directory
-              ls -R $(Build.SourcesDirectory)/target
-              # Copy the WAR file to target2 directory for Docker usage
-              mkdir -p $(Build.SourcesDirectory)/target2
-              cp $(Build.SourcesDirectory)/target/vprofile-v2.war $(Build.SourcesDirectory)/target2/
-            displayName: 'Verify and Copy WAR File to target2'
+          - task: CopyFiles@2
+            inputs:
+              SourceFolder: '$(Build.SourcesDirectory)/target'
+              Contents: 'vprofile-v2.war'
+              TargetFolder: '$(Build.SourcesDirectory)/target2'
+            displayName: 'Copy WAR File to target2'
 
   - stage: BuildAndPushDockerImage
     jobs:
       - job: BuildAndPushDockerImage
         steps:
           - script: |
-              docker build -t $(registry):$(imageTag) -t $(registry):latest .
+              # Build Docker Image using the Dockerfile located at a custom location
+              docker build -f /home/azureuser/myagent/_work/1/s/Dockerfile -t $(registry):$(imageTag) -t $(registry):latest /home/azureuser/myagent/_work/1/s
             displayName: 'Build Docker Image'
 
           - script: |
