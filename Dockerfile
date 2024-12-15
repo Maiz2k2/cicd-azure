@@ -1,5 +1,5 @@
 # Use the official Tomcat image with JRE 11
-FROM tomcat:8-jre11
+FROM tomcat:9-jre11
 
 # Clean the Tomcat webapps directory to avoid old applications
 RUN rm -rf /usr/local/tomcat/webapps/*
