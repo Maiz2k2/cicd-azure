@@ -1,16 +1,16 @@
-FROM tomcat:9-jdk17
+# Use the official Tomcat image with JRE 11
+FROM tomcat:9-jre11
 
 # Clean the Tomcat webapps directory to avoid old applications
 RUN rm -rf /usr/local/tomcat/webapps/*
 
-# Copy your WAR file into the Tomcat webapps directory
-COPY target/vprofile-v2.war /usr/local/tomcat/webapps/ROOT.war
+# Copy the WAR file from the build context into Tomcat's webapps folder
+# Ensure that the WAR file is correctly downloaded and placed in the build context
+# Copy the WAR file from the build context into Tomcat's webapps folder
+COPY target/war-files/vprofile-v2.war /usr/local/tomcat/webapps/ROOT.war
 
-# Set the JVM argument to allow reflective access to the restricted class
-ENV CATALINA_OPTS="--add-opens java.base/java.lang.invoke=ALL-UNNAMED"
-
-# Expose port 8080
+# Expose port 8080 for the application to be accessible
 EXPOSE 8080
 
-# Start Tomcat
+# Start Tomcat when the container runs
 CMD ["catalina.sh", "run"]
